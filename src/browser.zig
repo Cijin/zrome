@@ -2,20 +2,23 @@ const std = @import("std");
 const print = std.debug.print;
 const assert = std.debug.assert;
 const mem = std.mem;
+const fmt = std.fmt;
 const net = std.net;
 const uri = std.Uri;
+const http = std.http;
 
 const noHostError = error{
     NoHost,
     NullHost,
 };
 
-const Url = struct {
+pub const Tab = struct {
     rawURL: []u8,
     scheme: []const u8,
     host: []const u8,
+    stream: net.Stream,
 
-    fn init(u: []u8) !Url {
+    pub fn init(u: []u8, allocator: mem.Allocator) !Tab {
         const parsedURI = try uri.parse(u);
 
         if (parsedURI.host) |host| {
@@ -24,31 +27,42 @@ const Url = struct {
             }
 
             assert(host.percent_encoded.len != 0);
-            return Url{ .rawURL = u, .scheme = parsedURI.scheme, .host = host.percent_encoded };
+
+            // might have to move it to request later on
+            // as not all schemes need to initialize a stream
+            // ex: file://
+            var port: u16 = undefined;
+            if (mem.eql(u8, parsedURI.scheme, "http")) {
+                port = 80;
+            } else if (mem.eql(u8, parsedURI.scheme, "https")) {
+                port = 443;
+            } else @panic("unsupported scheme for making tcp requests");
+
+            const s = try net.tcpConnectToHost(allocator, host.percent_encoded, port);
+
+            return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .host = host.percent_encoded, .stream = s };
         }
 
         return error.NullHost;
     }
 
-    fn request(self: Url, allocator: mem.Allocator) !void {
-        const port: u16 = if (mem.eql(u8, self.scheme, "http")) {
-            80;
-        } else if (mem.eql(u8, self.scheme, "https")) {
-            443;
-        } else @panic("unsupported scheme for making tcp requests");
+    pub fn deinit(self: Tab) void {
+        self.stream.close();
+        return;
+    }
 
-        var stream = try net.tcpConnectToHost(allocator, self.host, port);
+    pub fn request(self: Tab, path: []const u8) !usize {
+        var buf: [1024]u8 = undefined;
+        const req = fmt.bufPrint(&buf, "{s} {s} HTTP/1.0\r\nHost: {s}\r\n\r\n", .{ @tagName(http.Method.GET), path, self.host }) catch unreachable;
+
+        _ = try self.stream.write(req);
+
+        @memset(buf, 0);
+        while (true) {
+            var bytesRead = try self.stream.read(&buf);
+            if (bytesRead == 0) {
+                break;
+            }
+        }
     }
 };
-
-pub fn process(u: []u8) void {
-    assert(u.len > 0);
-
-    const url = Url.init(u) catch |err| {
-        print("There was an error processing the URI:{}\n", .{err});
-        return;
-    };
-
-    print("Processing {s} request for host:", .{url.scheme});
-    print("'{s}'\n", .{url.host});
-}

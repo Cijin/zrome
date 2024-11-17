@@ -1,5 +1,7 @@
 const std = @import("std");
 const print = std.debug.print;
+const assert = std.debug.assert;
+const heap = std.heap;
 const io = std.io;
 const browser = @import("browser.zig");
 
@@ -30,10 +32,28 @@ pub fn main() void {
         break;
     }
 
-    stdout.print("Fetching: {s}", .{buffer}) catch |err| {
+    stdout.print("Connecting to: {s}", .{buffer}) catch |err| {
         print("Unable to write to std out, err:{}\n", .{err});
         return;
     };
 
-    browser.process(buffer[0..bufferReadLen]);
+    assert(bufferReadLen > 0);
+
+    var t = browser.Tab.init(buffer[0..bufferReadLen]) catch |err| {
+        print("There was a problem with the URL: {}\n", .{err});
+        return;
+    };
+
+    var gpa = heap.GeneralPurposeAllocator(.{ .thread_safe = true }){};
+    const allocator = gpa.allocator();
+    defer if (gpa.deinit() == .leak) {
+        print("Memory leak", .{});
+    };
+
+    const writtenBytes = t.request(allocator, "/index.html") catch |err| {
+        print("There was an error making that request: {}\n", .{err});
+        return;
+    };
+
+    print("Written {d} bytes\n", .{writtenBytes});
 }

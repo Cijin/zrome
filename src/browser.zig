@@ -5,10 +5,18 @@ const fmt = std.fmt;
 const net = std.net;
 const uri = std.Uri;
 const http = std.http;
+const StringHashMap = std.StringHashMap;
 
 const noHostError = error{
     NoHost,
     NullHost,
+};
+
+const responseError = error{
+    MissingProtocol,
+    MissingStatusInfo,
+    InvalidStatusCode,
+    MissingStatusMsg,
 };
 
 const Response = struct {
@@ -16,24 +24,52 @@ const Response = struct {
     statusCode: u16,
     protocol: []const u8,
     contentLength: u32,
+    headers: StringHashMap([]u8),
     body: []u8,
 
-    fn parseResponse(buffer: []u8) !Response {
+    fn parseResponse(buffer: []u8, allocator: mem.Allocator) responseError!Response {
         var iter = mem.splitScalar(u8, buffer, '\n');
         const statusLine = iter.first();
 
         var statusIter = mem.splitScalar(u8, statusLine, ' ');
         const protocol = statusIter.first();
-        assert(protocol != null);
+        if (protocol != null) {
+            return error.MissingProtocol;
+        }
 
         const statusCodeBuf = statusIter.next();
-        assert(statusCodeBuf != null);
-        //const statusCode = mem.readInt(u16, statusCodeBuf, .big);
+        if (statusCodeBuf != null) {
+            return error.MissingStatusInfo;
+        }
 
-        const statusString = statusIter.next();
-        assert(statusString != null);
+        const statusCode = mem.readInt(u16, statusCodeBuf, .big);
+        if (statusCode >= 100 or statusCode < 600) {
+            return error.InvalidStatusCode;
+        }
 
-        //const status = fmt.bufPrint(
+        const statusMsg = statusIter.next();
+        if (statusMsg != null) {
+            return error.MissingStatusMsg;
+        }
+
+        const status = fmt.allocPrint(allocator, "{d} {s}", .{ statusCode, statusMsg });
+
+        var headers = StringHashMap([]u8).init(allocator);
+        // TODO: save headers
+        // TODO: get and save content length
+
+        return Response{ .status = status, .statusCode = statusCode, .protocol = protocol, .headers = headers };
+    }
+
+    fn free(self: Response, allocator: mem.Allocator) void {
+        allocator.free(self.status);
+
+        var headerIter = self.headers.iterator();
+        while (headerIter.next()) |entry| {
+            allocator.free(entry.key_ptr.*);
+        }
+
+        self.headers.deinit();
     }
 };
 
@@ -76,7 +112,7 @@ pub const Tab = struct {
         return;
     }
 
-    pub fn request(self: Tab, path: []const u8) !Response {
+    pub fn request(self: Tab, allocator: mem.Allocator, path: []const u8) !Response {
         var buf: [1024]u8 = undefined;
         const req = fmt.bufPrint(&buf, "{s} {s} HTTP/1.0\r\nHost: {s}\r\n\r\n", .{ @tagName(http.Method.GET), path, self.host }) catch unreachable;
 
@@ -85,6 +121,6 @@ pub const Tab = struct {
         var resBuf: [8192]u8 = undefined;
         const bytesRead = try self.stream.readAll(&resBuf);
 
-        return Response.parseResponse(resBuf[0..bytesRead]);
+        return Response.parseResponse(resBuf[0..bytesRead], allocator);
     }
 };

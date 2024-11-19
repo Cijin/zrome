@@ -49,11 +49,18 @@ pub fn main() void {
         print("There was a problem with the URL: {}\n", .{err});
         return;
     };
+    defer t.deinit();
 
-    const res = t.request("/index.html") catch |err| {
+    const rawRes = t.request("/index.html") catch |err| {
         print("There was an error making that request: {}\n", .{err});
         return;
     };
 
-    print("Written {s} bytes\n", .{res});
+    const res = browser.Response.parseResponse(rawRes, allocator) catch |err| {
+        print("There was an error parsing that response: {}\n", .{err});
+        return;
+    };
+    defer res.free(allocator);
+
+    print("Status: {s}, Protocol: {s}", .{ res.protocol, res.status });
 }

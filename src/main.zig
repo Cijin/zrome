@@ -29,6 +29,9 @@ pub fn main() void {
         };
 
         bufferReadLen = result.len;
+        if (bufferReadLen == 0) {
+            continue;
+        }
         break;
     }
 
@@ -62,5 +65,6 @@ pub fn main() void {
     };
     defer res.free(allocator);
 
-    print("Status: {s}, Protocol: {s}", .{ res.protocol, res.status });
+    print("Protocol: {s}\n", .{res.protocol});
+    print("Status Code: {d}\n", .{res.statusCode});
 }

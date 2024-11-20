@@ -28,17 +28,14 @@ pub const Response = struct {
     //  body: []u8,
 
     pub fn parseResponse(buffer: []u8, allocator: mem.Allocator) !Response {
-        std.debug.print("Method called", .{});
         var iter = mem.splitScalar(u8, buffer, '\n');
         const statusLine = iter.first();
-        std.debug.print("Status line: {s}", .{statusLine});
 
         var statusIter = mem.splitScalar(u8, statusLine, ' ');
         const protocol = statusIter.first();
         if (protocol.len == 0) {
             return error.MissingProtocol;
         }
-        std.debug.print("Protocol: {s}", .{protocol});
 
         const statusCodeBuf = statusIter.next();
         var status: []const u8 = undefined;

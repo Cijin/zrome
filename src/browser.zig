@@ -17,19 +17,20 @@ const responseError = error{
     MissingStatusInfo,
     InvalidStatusCode,
     MissingStatusMsg,
+    InvalidHeaderValue,
 };
 
 pub const Response = struct {
     status: []const u8,
     statusCode: u16,
     protocol: []const u8,
-    //    contentLength: u32,
-    //   headers: StringHashMap([]u8),
+    headers: *StringHashMap([]const u8),
     //  body: []u8,
 
-    pub fn parseResponse(buffer: []u8, allocator: mem.Allocator) !Response {
-        var iter = mem.splitScalar(u8, buffer, '\n');
+    pub fn parseResponse(buffer: []u8, map: *StringHashMap([]const u8)) !Response {
+        var iter = mem.splitSequence(u8, buffer, "\r\n");
         const statusLine = iter.first();
+        std.debug.print("{s}\n", .{iter.rest()});
 
         var statusIter = mem.splitScalar(u8, statusLine, ' ');
         const protocol = statusIter.first();
@@ -48,7 +49,8 @@ pub const Response = struct {
 
             const statusMsg = statusIter.next();
             if (statusMsg) |msg| {
-                status = try fmt.allocPrint(allocator, "{d} {s}", .{ statusCode, msg });
+                var statusBuf: [256]u8 = undefined;
+                status = try fmt.bufPrint(&statusBuf, "{d} {s}", .{ statusCode, msg });
             } else {
                 return error.MissingStatusMsg;
             }
@@ -56,24 +58,18 @@ pub const Response = struct {
             return error.MissingStatusInfo;
         }
 
-        //var headers = StringHashMap([]u8).init(allocator);
-        //
-        // TODO: save headers
-        // TODO: get and save content length
-        //
+        while (iter.next()) |headerLine| {
+            if (headerLine.len == 0) break;
 
-        return Response{ .status = status, .statusCode = statusCode, .protocol = protocol };
-    }
+            var headerIter = mem.splitSequence(u8, headerLine, ": ");
+            const key = headerIter.first();
 
-    pub fn free(self: Response, allocator: mem.Allocator) void {
-        allocator.free(self.status);
+            const value = headerIter.rest();
+            try map.put(key, value);
+        }
+        // Todo: save body
 
-        //        var headerIter = self.headers.iterator();
-        //        while (headerIter.next()) |entry| {
-        //            allocator.free(entry.key_ptr.*);
-        //        }
-        //
-        //        self.headers.deinit();
+        return Response{ .status = status, .statusCode = statusCode, .protocol = protocol, .headers = map };
     }
 };
 

@@ -59,12 +59,16 @@ pub fn main() void {
         return;
     };
 
-    const res = browser.Response.parseResponse(rawRes, allocator) catch |err| {
+    var map = std.StringHashMap([]const u8).init(allocator);
+    defer map.deinit();
+
+    _ = browser.Response.parseResponse(rawRes, &map) catch |err| {
         print("There was an error parsing that response: {}\n", .{err});
         return;
     };
-    defer res.free(allocator);
 
-    print("Protocol: {s}\n", .{res.protocol});
-    print("Status Code: {d}\n", .{res.statusCode});
+    var iterator = map.iterator();
+    while (iterator.next()) |entry| {
+        std.debug.print("{s}: {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+    }
 }

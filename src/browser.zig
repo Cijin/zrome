@@ -24,13 +24,14 @@ pub const Response = struct {
     status: []const u8,
     statusCode: u16,
     protocol: []const u8,
-    headers: *StringHashMap([]const u8),
-    //  body: []u8,
+    headers: []const u8,
+    body: []const u8,
 
-    pub fn parseResponse(buffer: []u8, map: *StringHashMap([]const u8)) !Response {
-        var iter = mem.splitSequence(u8, buffer, "\r\n");
-        const statusLine = iter.first();
-        std.debug.print("{s}\n", .{iter.rest()});
+    pub fn parseResponse(buffer: []u8) !Response {
+        var iter = mem.splitSequence(u8, buffer, "\r\n\r\n");
+        var headIter = mem.splitSequence(u8, iter.first(), "\r\n");
+
+        const statusLine = headIter.first();
 
         var statusIter = mem.splitScalar(u8, statusLine, ' ');
         const protocol = statusIter.first();
@@ -58,18 +59,7 @@ pub const Response = struct {
             return error.MissingStatusInfo;
         }
 
-        while (iter.next()) |headerLine| {
-            if (headerLine.len == 0) break;
-
-            var headerIter = mem.splitSequence(u8, headerLine, ": ");
-            const key = headerIter.first();
-
-            const value = headerIter.rest();
-            try map.put(key, value);
-        }
-        // Todo: save body
-
-        return Response{ .status = status, .statusCode = statusCode, .protocol = protocol, .headers = map };
+        return Response{ .status = status, .statusCode = statusCode, .protocol = protocol, .headers = headIter.rest(), .body = iter.rest() };
     }
 };
 

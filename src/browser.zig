@@ -27,7 +27,7 @@ pub const Response = struct {
     headers: []const u8,
     body: []const u8,
 
-    pub fn parseResponse(buffer: []u8) !Response {
+    pub fn parseResponse(buffer: []u8, allocator: mem.Allocator) !*Response {
         var iter = mem.splitSequence(u8, buffer, "\r\n\r\n");
         var headIter = mem.splitSequence(u8, iter.first(), "\r\n");
 
@@ -59,7 +59,14 @@ pub const Response = struct {
             return error.MissingStatusInfo;
         }
 
-        return Response{ .status = status, .statusCode = statusCode, .protocol = protocol, .headers = headIter.rest(), .body = iter.rest() };
+        const res = try allocator.create(Response);
+        res.* = Response{ .status = status, .statusCode = statusCode, .protocol = protocol, .headers = headIter.rest(), .body = try allocator.dupe(u8, iter.rest()) };
+        return res;
+    }
+
+    pub fn free(self: *Response, allocator: mem.Allocator) void {
+        allocator.free(self.body);
+        allocator.destroy(self);
     }
 };
 
@@ -114,3 +121,25 @@ pub const Tab = struct {
         return resBuf[0..bytesRead];
     }
 };
+
+// currently there is no rendering, it's super simple, as it just
+// returns the content without the tags
+pub fn renderHTML(body: []const u8) []u8 {
+    var buf: [8192]u8 = undefined;
+    var bufIdx: usize = 0;
+    var inTag: bool = false;
+
+    for (body) |c| {
+        switch (c) {
+            '>' => inTag = false,
+            '<' => inTag = true,
+            else => {
+                if (!inTag) {
+                    buf[bufIdx] = c;
+                    bufIdx += 1;
+                }
+            },
+        }
+    }
+    return buf[0..bufIdx];
+}

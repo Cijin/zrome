@@ -59,10 +59,14 @@ pub fn main() void {
         return;
     };
 
-    const res = browser.Response.parseResponse(rawRes) catch |err| {
+    const res = browser.Response.parseResponse(rawRes, allocator) catch |err| {
         print("There was an error parsing that response: {}\n", .{err});
         return;
     };
+    defer res.free(allocator);
 
-    print("Headers: {s}\n", .{res.headers});
+    const html = browser.renderHTML(res.body);
+    print("Body: {s}\n", .{html});
+
+    return;
 }

@@ -52,7 +52,7 @@ pub fn main() void {
         print("There was a problem with the URL: {}\n", .{err});
         return;
     };
-    defer t.deinit();
+    defer t.deinit(allocator);
 
     const rawRes = t.request("/index.html") catch |err| {
         print("There was an error making that request: {}\n", .{err});

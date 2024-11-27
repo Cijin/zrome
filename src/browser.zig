@@ -5,7 +5,7 @@ const fmt = std.fmt;
 const net = std.net;
 const uri = std.Uri;
 const http = std.http;
-const StringHashMap = std.StringHashMap;
+const crypto = std.crypto;
 
 const noHostError = error{
     NoHost,
@@ -74,7 +74,11 @@ pub const Tab = struct {
     rawURL: []u8,
     scheme: []const u8,
     host: []const u8,
+    port: u16,
+    secure: bool,
     stream: net.Stream,
+    tlsConn: crypto.tls.Client,
+    bundle: crypto.Certificate.Bundle,
 
     pub fn init(u: []u8, allocator: mem.Allocator) !Tab {
         const parsedURI = try uri.parse(u);
@@ -86,37 +90,56 @@ pub const Tab = struct {
 
             assert(host.percent_encoded.len != 0);
 
-            // might have to move it to request later on
-            // as not all schemes need to initialize a stream
-            // ex: file://
             var port: u16 = undefined;
+            var secure: bool = false;
+            var bundle: crypto.Certificate.Bundle = undefined;
+            var tlsClient: crypto.tls.Client = undefined;
             if (mem.eql(u8, parsedURI.scheme, "http")) {
                 port = 80;
             } else if (mem.eql(u8, parsedURI.scheme, "https")) {
                 port = 443;
+                secure = true;
             } else @panic("unsupported scheme for making tcp requests");
 
             const s = try net.tcpConnectToHost(allocator, host.percent_encoded, port);
+            if (secure) {
+                bundle = crypto.Certificate.Bundle{};
+                try bundle.rescan(allocator);
+                tlsClient = try crypto.tls.Client.init(s, bundle, host.percent_encoded);
+            }
 
-            return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .host = host.percent_encoded, .stream = s };
+            return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = port, .host = host.percent_encoded, .stream = s, .tlsConn = tlsClient, .secure = secure, .bundle = bundle };
         }
 
         return error.NullHost;
     }
 
-    pub fn deinit(self: Tab) void {
+    pub fn deinit(self: *Tab, allocator: mem.Allocator) void {
         self.stream.close();
+
+        if (self.secure) {
+            self.bundle.deinit(allocator);
+        }
         return;
     }
 
-    pub fn request(self: Tab, path: []const u8) ![]u8 {
+    pub fn request(self: *Tab, path: []const u8) ![]u8 {
         var buf: [1024]u8 = undefined;
         const req = fmt.bufPrint(&buf, "{s} {s} HTTP/1.0\r\nHost: {s}\r\n\r\n", .{ @tagName(http.Method.GET), path, self.host }) catch unreachable;
 
-        _ = try self.stream.write(req);
+        if (self.secure) {
+            _ = try self.tlsConn.write(self.stream, req);
+        } else {
+            _ = try self.stream.write(req);
+        }
 
         var resBuf: [8192]u8 = undefined;
-        const bytesRead = try self.stream.readAll(&resBuf);
+        var bytesRead: usize = 0;
+        if (self.secure) {
+            bytesRead = try self.tlsConn.readAll(self.stream, &resBuf);
+        } else {
+            bytesRead = try self.stream.readAll(&resBuf);
+        }
 
         return resBuf[0..bytesRead];
     }

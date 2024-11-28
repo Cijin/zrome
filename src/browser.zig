@@ -7,6 +7,9 @@ const uri = std.Uri;
 const http = std.http;
 const crypto = std.crypto;
 
+const httpVer = "HTTP/1.1";
+const userAgent = "Zrome-0.0.1";
+
 const noHostError = error{
     NoHost,
     NullHost,
@@ -125,7 +128,7 @@ pub const Tab = struct {
 
     pub fn request(self: *Tab, path: []const u8) ![]u8 {
         var buf: [1024]u8 = undefined;
-        const req = fmt.bufPrint(&buf, "{s} {s} HTTP/1.0\r\nHost: {s}\r\n\r\n", .{ @tagName(http.Method.GET), path, self.host }) catch unreachable;
+        const req = fmt.bufPrint(&buf, "{s} {s} {s}\r\nHost: {s}\r\nUser-Agent: {s}\r\nConnection: close\r\n\r\n", .{ httpVer, userAgent, @tagName(http.Method.GET), path, self.host }) catch unreachable;
 
         if (self.secure) {
             _ = try self.tlsConn.write(self.stream, req);

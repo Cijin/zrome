@@ -54,10 +54,15 @@ pub fn main() void {
     };
     defer t.deinit(allocator);
 
-    const rawRes = t.process("/index.html") catch |err| {
+    const rawRes = t.process() catch |err| {
         print("There was an error making that request: {}\n", .{err});
         return;
     };
+
+    if (std.mem.eql(u8, t.scheme, "file")) {
+        print("{s}\n", .{rawRes});
+        return;
+    }
 
     const res = browser.Response.parseResponse(rawRes, allocator) catch |err| {
         print("There was an error parsing that response: {}\n", .{err});

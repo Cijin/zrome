@@ -2,6 +2,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 const mem = std.mem;
 const fmt = std.fmt;
+const fs = std.fs;
 const net = std.net;
 const uri = std.Uri;
 const http = std.http;
@@ -21,6 +22,10 @@ const responseError = error{
     InvalidStatusCode,
     MissingStatusMsg,
     InvalidHeaderValue,
+};
+
+const fileError = error{
+    PathNotAbsolute,
 };
 
 pub const Response = struct {
@@ -77,22 +82,22 @@ pub const Tab = struct {
     rawURL: []u8,
     scheme: []const u8,
     host: []const u8,
+    path: []const u8,
     port: u16,
     secure: bool,
     viewSource: bool,
-    stream: net.Stream,
-    bundle: crypto.Certificate.Bundle,
+    stream: ?net.Stream,
+    bundle: ?crypto.Certificate.Bundle,
 
     pub fn init(u: []u8, allocator: mem.Allocator) !Tab {
         // Todo: handle url like: localhost:8080
         const parsedURI = try uri.parse(u);
 
+        // Todo: check scheme instead
         if (parsedURI.host) |host| {
             if (host.isEmpty()) {
                 return error.NoHost;
             }
-
-            assert(host.percent_encoded.len != 0);
 
             var port: u16 = undefined;
             var secure: bool = false;
@@ -114,49 +119,76 @@ pub const Tab = struct {
                 try bundle.rescan(allocator);
             }
 
-            return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = port, .host = host.percent_encoded, .stream = s, .secure = secure, .bundle = bundle, .viewSource = viewSource };
+            return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = port, .host = host.percent_encoded, .path = parsedURI.path.percent_encoded, .stream = s, .secure = secure, .bundle = bundle, .viewSource = viewSource };
+        }
+
+        if (mem.eql(u8, parsedURI.scheme, "file")) {
+            return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = 0, .host = "", .path = parsedURI.path.percent_encoded, .stream = null, .secure = false, .bundle = null, .viewSource = false };
         }
 
         return error.NullHost;
     }
 
     pub fn deinit(self: *Tab, allocator: mem.Allocator) void {
-        self.stream.close();
+        if (self.stream) |stream| {
+            stream.close();
+        }
 
         if (self.secure) {
-            self.bundle.deinit(allocator);
+            self.bundle.?.deinit(allocator);
         }
         return;
     }
 
-    pub fn process(self: *Tab, path: []const u8) ![]u8 {
-        if (mem.eql(u8, self.scheme, "file")) {}
+    pub fn process(self: *Tab) ![]u8 {
+        if (mem.eql(u8, self.scheme, "file")) {
+            if (!fs.path.isAbsolute(self.path)) {
+                return fileError.PathNotAbsolute;
+            }
+
+            var dir = try fs.openDirAbsolute(self.path, .{ .access_sub_paths = false, .iterate = true, .no_follow = true });
+            var dirIter = dir.iterate();
+
+            var buf: [1024]u8 = undefined;
+            var contentLength: usize = 0;
+            while (try dirIter.next()) |entry| {
+                if (entry.kind == fs.File.Kind.file) {
+                    const written = try fmt.bufPrint(buf[contentLength..], "{s}\n", .{entry.name});
+                    contentLength += written.len;
+                    continue;
+                }
+                const writtenDir = try fmt.bufPrint(buf[contentLength..], "{s}/\n", .{entry.name});
+                contentLength += writtenDir.len;
+            }
+
+            // Todo: might need to allocate this
+            return buf[0..contentLength];
+        }
 
         if (mem.eql(u8, self.scheme, "data")) {}
 
-        // if scheme file
-        if (mem.eql(u8, self.scheme, "http") or (mem.eql(u8, self.scheme, "https"))) {
-            return self.request(path);
-        }
-
-        unreachable;
+        return self.request();
     }
 
-    fn request(self: *Tab, path: []const u8) ![]u8 {
+    fn request(self: *Tab) ![]u8 {
+        assert(self.stream != null);
+        assert(self.bundle != null);
+
         var buf: [1024]u8 = undefined;
-        const req = fmt.bufPrint(&buf, "{s} {s} {s}\r\nHost: {s}\r\nUser-Agent: {s}\r\nConnection: close\r\n\r\n", .{ @tagName(http.Method.GET), path, httpVer, self.host, userAgent }) catch unreachable;
-        std.debug.print("{s}\n", .{req});
+        const req = fmt.bufPrint(&buf, "{s} {s} {s}\r\nHost: {s}\r\nUser-Agent: {s}\r\nConnection: close\r\n\r\n", .{ @tagName(http.Method.GET), self.path, httpVer, self.host, userAgent }) catch unreachable;
 
         var resBuf: [8192]u8 = undefined;
         var bytesRead: usize = 0;
-        if (self.secure) {
-            var tlsConn = try crypto.tls.Client.init(self.stream, self.bundle, self.host);
-            _ = try tlsConn.write(self.stream, req);
-            bytesRead = try tlsConn.readAll(self.stream, &resBuf);
-        } else {
-            _ = try self.stream.write(req);
-            bytesRead = try self.stream.readAll(&resBuf);
-        }
+        if (self.stream) |stream| {
+            if (self.secure) {
+                var tlsConn = try crypto.tls.Client.init(stream, self.bundle.?, self.host);
+                _ = try tlsConn.write(stream, req);
+                bytesRead = try tlsConn.readAll(stream, &resBuf);
+            } else {
+                _ = try stream.write(req);
+                bytesRead = try stream.readAll(&resBuf);
+            }
+        } else unreachable;
 
         return resBuf[0..bytesRead];
     }

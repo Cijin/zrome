@@ -79,11 +79,12 @@ pub const Tab = struct {
     host: []const u8,
     port: u16,
     secure: bool,
+    viewSource: bool,
     stream: net.Stream,
-    tlsConn: crypto.tls.Client,
     bundle: crypto.Certificate.Bundle,
 
     pub fn init(u: []u8, allocator: mem.Allocator) !Tab {
+        // Todo: handle url like: localhost:8080
         const parsedURI = try uri.parse(u);
 
         if (parsedURI.host) |host| {
@@ -95,23 +96,25 @@ pub const Tab = struct {
 
             var port: u16 = undefined;
             var secure: bool = false;
+            var viewSource: bool = false;
             var bundle: crypto.Certificate.Bundle = undefined;
-            var tlsClient: crypto.tls.Client = undefined;
             if (mem.eql(u8, parsedURI.scheme, "http")) {
                 port = 80;
             } else if (mem.eql(u8, parsedURI.scheme, "https")) {
                 port = 443;
                 secure = true;
-            } else @panic("unsupported scheme for making tcp requests");
+            } else if (mem.eql(u8, parsedURI.scheme, "view-source")) {
+                viewSource = true;
+                // Todo: get scheme, host port etc
+            } else @panic("unsupported scheme");
 
             const s = try net.tcpConnectToHost(allocator, host.percent_encoded, port);
             if (secure) {
                 bundle = crypto.Certificate.Bundle{};
                 try bundle.rescan(allocator);
-                tlsClient = try crypto.tls.Client.init(s, bundle, host.percent_encoded);
             }
 
-            return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = port, .host = host.percent_encoded, .stream = s, .tlsConn = tlsClient, .secure = secure, .bundle = bundle };
+            return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = port, .host = host.percent_encoded, .stream = s, .secure = secure, .bundle = bundle, .viewSource = viewSource };
         }
 
         return error.NullHost;
@@ -126,21 +129,32 @@ pub const Tab = struct {
         return;
     }
 
-    pub fn request(self: *Tab, path: []const u8) ![]u8 {
-        var buf: [1024]u8 = undefined;
-        const req = fmt.bufPrint(&buf, "{s} {s} {s}\r\nHost: {s}\r\nUser-Agent: {s}\r\nConnection: close\r\n\r\n", .{ httpVer, userAgent, @tagName(http.Method.GET), path, self.host }) catch unreachable;
+    pub fn process(self: *Tab, path: []const u8) ![]u8 {
+        if (mem.eql(u8, self.scheme, "file")) {}
 
-        if (self.secure) {
-            _ = try self.tlsConn.write(self.stream, req);
-        } else {
-            _ = try self.stream.write(req);
+        if (mem.eql(u8, self.scheme, "data")) {}
+
+        // if scheme file
+        if (mem.eql(u8, self.scheme, "http") or (mem.eql(u8, self.scheme, "https"))) {
+            return self.request(path);
         }
+
+        unreachable;
+    }
+
+    fn request(self: *Tab, path: []const u8) ![]u8 {
+        var buf: [1024]u8 = undefined;
+        const req = fmt.bufPrint(&buf, "{s} {s} {s}\r\nHost: {s}\r\nUser-Agent: {s}\r\nConnection: close\r\n\r\n", .{ @tagName(http.Method.GET), path, httpVer, self.host, userAgent }) catch unreachable;
+        std.debug.print("{s}\n", .{req});
 
         var resBuf: [8192]u8 = undefined;
         var bytesRead: usize = 0;
         if (self.secure) {
-            bytesRead = try self.tlsConn.readAll(self.stream, &resBuf);
+            var tlsConn = try crypto.tls.Client.init(self.stream, self.bundle, self.host);
+            _ = try tlsConn.write(self.stream, req);
+            bytesRead = try tlsConn.readAll(self.stream, &resBuf);
         } else {
+            _ = try self.stream.write(req);
             bytesRead = try self.stream.readAll(&resBuf);
         }
 

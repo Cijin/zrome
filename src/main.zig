@@ -54,7 +54,7 @@ pub fn main() void {
     };
     defer t.deinit(allocator);
 
-    const rawRes = t.request("/index.html") catch |err| {
+    const rawRes = t.process("/index.html") catch |err| {
         print("There was an error making that request: {}\n", .{err});
         return;
     };

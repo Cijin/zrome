@@ -54,13 +54,14 @@ pub fn main() void {
     };
     defer t.deinit(allocator);
 
-    const rawRes = t.process() catch |err| {
+    const rawRes = t.process(allocator) catch |err| {
         print("There was an error making that request: {}\n", .{err});
         return;
     };
 
     if (std.mem.eql(u8, t.scheme, "file")) {
         print("{s}\n", .{rawRes});
+        allocator.free(rawRes);
         return;
     }
 

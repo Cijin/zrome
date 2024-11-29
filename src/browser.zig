@@ -140,7 +140,7 @@ pub const Tab = struct {
         return;
     }
 
-    pub fn process(self: *Tab) ![]u8 {
+    pub fn process(self: *Tab, allocator: mem.Allocator) ![]u8 {
         if (mem.eql(u8, self.scheme, "file")) {
             if (!fs.path.isAbsolute(self.path)) {
                 return fileError.PathNotAbsolute;
@@ -161,8 +161,7 @@ pub const Tab = struct {
                 contentLength += writtenDir.len;
             }
 
-            // Todo: might need to allocate this
-            return buf[0..contentLength];
+            return try allocator.dupe(u8, buf[0..contentLength]);
         }
 
         if (mem.eql(u8, self.scheme, "data")) {}

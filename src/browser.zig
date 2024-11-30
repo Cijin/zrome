@@ -93,40 +93,39 @@ pub const Tab = struct {
         // Todo: handle url like: localhost:8080
         const parsedURI = try uri.parse(u);
 
-        // Todo: check scheme instead
-        if (parsedURI.host) |host| {
-            if (host.isEmpty()) {
-                return error.NoHost;
+        if (!mem.eql(u8, parsedURI.scheme, "file")) {
+            if (parsedURI.host) |host| {
+                if (host.isEmpty()) {
+                    return error.NoHost;
+                }
+
+                var port: u16 = undefined;
+                var secure: bool = false;
+                var viewSource: bool = false;
+                var bundle: crypto.Certificate.Bundle = undefined;
+                if (mem.eql(u8, parsedURI.scheme, "http")) {
+                    port = 80;
+                } else if (mem.eql(u8, parsedURI.scheme, "https")) {
+                    port = 443;
+                    secure = true;
+                } else if (mem.eql(u8, parsedURI.scheme, "view-source")) {
+                    viewSource = true;
+                    // Todo: get scheme, host port etc
+                } else unreachable;
+
+                const s = try net.tcpConnectToHost(allocator, host.percent_encoded, port);
+                if (secure) {
+                    bundle = crypto.Certificate.Bundle{};
+                    try bundle.rescan(allocator);
+                }
+
+                return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = port, .host = host.percent_encoded, .path = parsedURI.path.percent_encoded, .stream = s, .secure = secure, .bundle = bundle, .viewSource = viewSource };
             }
 
-            var port: u16 = undefined;
-            var secure: bool = false;
-            var viewSource: bool = false;
-            var bundle: crypto.Certificate.Bundle = undefined;
-            if (mem.eql(u8, parsedURI.scheme, "http")) {
-                port = 80;
-            } else if (mem.eql(u8, parsedURI.scheme, "https")) {
-                port = 443;
-                secure = true;
-            } else if (mem.eql(u8, parsedURI.scheme, "view-source")) {
-                viewSource = true;
-                // Todo: get scheme, host port etc
-            } else @panic("unsupported scheme");
-
-            const s = try net.tcpConnectToHost(allocator, host.percent_encoded, port);
-            if (secure) {
-                bundle = crypto.Certificate.Bundle{};
-                try bundle.rescan(allocator);
-            }
-
-            return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = port, .host = host.percent_encoded, .path = parsedURI.path.percent_encoded, .stream = s, .secure = secure, .bundle = bundle, .viewSource = viewSource };
+            return error.NullHost;
         }
 
-        if (mem.eql(u8, parsedURI.scheme, "file")) {
-            return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = 0, .host = "", .path = parsedURI.path.percent_encoded, .stream = null, .secure = false, .bundle = null, .viewSource = false };
-        }
-
-        return error.NullHost;
+        return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = 0, .host = "", .path = parsedURI.path.percent_encoded, .stream = null, .secure = false, .bundle = null, .viewSource = false };
     }
 
     pub fn deinit(self: *Tab, allocator: mem.Allocator) void {
@@ -146,7 +145,20 @@ pub const Tab = struct {
                 return fileError.PathNotAbsolute;
             }
 
-            var dir = try fs.openDirAbsolute(self.path, .{ .access_sub_paths = false, .iterate = true, .no_follow = true });
+            var dir = fs.openDirAbsolute(self.path, .{ .access_sub_paths = false, .iterate = true, .no_follow = true }) catch |err| {
+                if (err != error.NotDir) {
+                    return err;
+                }
+
+                var file = try fs.openFileAbsolute(self.path, .{ .mode = fs.File.OpenMode.read_only, .lock = fs.File.Lock.none });
+                defer file.close();
+
+                var buf: [8192]u8 = undefined;
+                const bytesRead = try file.readAll(&buf);
+
+                return try allocator.dupe(u8, buf[0..bytesRead]);
+            };
+            defer dir.close();
             var dirIter = dir.iterate();
 
             var buf: [1024]u8 = undefined;

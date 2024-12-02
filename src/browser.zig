@@ -205,7 +205,6 @@ pub const Tab = struct {
         try reqWriter.writeAll("\r\n");
 
         const req = reqStream.getWritten();
-        std.debug.print("{s}\n", .{req});
         var resBuf: [8192]u8 = undefined;
         var bytesRead: usize = 0;
         if (self.stream) |stream| {

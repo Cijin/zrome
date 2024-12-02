@@ -3,6 +3,7 @@ const assert = std.debug.assert;
 const mem = std.mem;
 const fmt = std.fmt;
 const fs = std.fs;
+const io = std.io;
 const net = std.net;
 const uri = std.Uri;
 const http = std.http;
@@ -10,6 +11,11 @@ const crypto = std.crypto;
 
 const httpVer = "HTTP/1.1";
 const userAgent = "Zrome-0.0.1";
+
+const defaultHeaders = [_][2][]const u8{
+    .{ "User-Agent", userAgent },
+    .{ "Connection", "close" },
+};
 
 const noHostError = error{
     NoHost,
@@ -185,9 +191,21 @@ pub const Tab = struct {
         assert(self.stream != null);
         assert(self.bundle != null);
 
-        var buf: [1024]u8 = undefined;
-        const req = fmt.bufPrint(&buf, "{s} {s} {s}\r\nHost: {s}\r\nUser-Agent: {s}\r\nConnection: close\r\n\r\n", .{ @tagName(http.Method.GET), self.path, httpVer, self.host, userAgent }) catch unreachable;
+        var reqBuf: [4096]u8 = undefined;
+        var reqStream = io.fixedBufferStream(&reqBuf);
+        var reqWriter = reqStream.writer();
 
+        reqWriter.print("{s} {s} {s}\r\nHost: {s}\r\n", .{ @tagName(http.Method.GET), self.path, httpVer, self.host }) catch unreachable;
+        for (defaultHeaders) |header| {
+            // Todo: expand buffer if out of space
+            // catch the error and expand buf
+            // Not sure how to do this, but can look it up when needed
+            try reqWriter.print("{s}: {s}\r\n", .{ header[0], header[1] });
+        }
+        try reqWriter.writeAll("\r\n");
+
+        const req = reqStream.getWritten();
+        std.debug.print("{s}\n", .{req});
         var resBuf: [8192]u8 = undefined;
         var bytesRead: usize = 0;
         if (self.stream) |stream| {

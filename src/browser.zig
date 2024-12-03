@@ -104,8 +104,16 @@ pub const Tab = struct {
     bundle: ?crypto.Certificate.Bundle,
 
     pub fn init(u: []u8, allocator: mem.Allocator) !Tab {
+        var viewSource: bool = false;
         // Todo: handle url like: localhost:8080
-        const parsedURI = try uri.parse(u);
+        var parsedURI = try uri.parse(u);
+        if (mem.eql(u8, parsedURI.scheme, "view-source")) {
+            viewSource = true;
+            var uriIter = mem.splitScalar(u8, u, ':');
+            _ = uriIter.first();
+
+            parsedURI = try uri.parse(uriIter.rest());
+        }
 
         if (isNetworkScheme(parsedURI.scheme)) {
             if (parsedURI.host) |host| {
@@ -115,16 +123,13 @@ pub const Tab = struct {
 
                 var port: u16 = undefined;
                 var secure: bool = false;
-                var viewSource: bool = false;
                 var bundle: crypto.Certificate.Bundle = undefined;
+
                 if (mem.eql(u8, parsedURI.scheme, "http")) {
                     port = 80;
                 } else if (mem.eql(u8, parsedURI.scheme, "https")) {
                     port = 443;
                     secure = true;
-                } else if (mem.eql(u8, parsedURI.scheme, "view-source")) {
-                    viewSource = true;
-                    // Todo: get scheme, host port etc
                 } else unreachable;
 
                 const s = try net.tcpConnectToHost(allocator, host.percent_encoded, port);
@@ -219,6 +224,7 @@ pub const Tab = struct {
         var reqStream = io.fixedBufferStream(&reqBuf);
         var reqWriter = reqStream.writer();
 
+        // Todo: if path ends with a '/' request for '/index.html'?
         reqWriter.print("{s} {s} {s}\r\nHost: {s}\r\n", .{ @tagName(http.Method.GET), self.path, httpVer, self.host }) catch unreachable;
         for (defaultHeaders) |header| {
             // Todo: expand buffer if out of space

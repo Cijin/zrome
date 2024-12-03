@@ -71,6 +71,11 @@ pub fn main() void {
         return;
     }
 
+    if (t.viewSource) {
+        print("{s}\n", .{rawRes});
+        return;
+    }
+
     const res = browser.Response.parseResponse(rawRes, allocator) catch |err| {
         print("There was an error parsing that response: {}\n", .{err});
         return;

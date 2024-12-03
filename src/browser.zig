@@ -255,17 +255,36 @@ pub const Tab = struct {
 // currently there is no rendering, it's super simple, as it just
 // returns the content without the tags
 pub fn renderHTML(body: []const u8) []u8 {
+    // Todo: Entities
     var buf: [8192]u8 = undefined;
     var bufIdx: usize = 0;
+    var i: usize = 0;
     var inTag: bool = false;
 
-    for (body) |c| {
-        switch (c) {
+    while (i < body.len) : (i += 1) {
+        switch (body[i]) {
             '>' => inTag = false,
             '<' => inTag = true,
+            '&' => {
+                if (inTag) continue;
+
+                var entity: ?u8 = null;
+                if (body[i + 1] == 'l' and body[i + 2] == 't' and body[i + 3] == ';') {
+                    entity = '<';
+                } else if (body[i + 1] == 'g' and body[i + 2] == 't' and body[i + 3] == ';') {
+                    entity = '>';
+                }
+
+                if (entity) |e| {
+                    buf[bufIdx] = e;
+                    bufIdx += 1;
+
+                    i += 3;
+                }
+            },
             else => {
                 if (!inTag) {
-                    buf[bufIdx] = c;
+                    buf[bufIdx] = body[i];
                     bufIdx += 1;
                 }
             },

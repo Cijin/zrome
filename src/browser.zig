@@ -17,11 +17,6 @@ const defaultHeaders = [_][2][]const u8{
     .{ "Connection", "close" },
 };
 
-const noHostError = error{
-    NoHost,
-    NullHost,
-};
-
 const responseError = error{
     MissingProtocol,
     MissingStatusInfo,
@@ -84,6 +79,19 @@ pub const Response = struct {
     }
 };
 
+fn isNetworkScheme(scheme: []const u8) bool {
+    return (mem.eql(u8, scheme, "https")) or (mem.eql(u8, scheme, "http"));
+}
+
+const noHostError = error{
+    NoHost,
+    NullHost,
+};
+
+const schemeError = error{
+    UnsupporterScheme,
+};
+
 pub const Tab = struct {
     rawURL: []u8,
     scheme: []const u8,
@@ -99,7 +107,7 @@ pub const Tab = struct {
         // Todo: handle url like: localhost:8080
         const parsedURI = try uri.parse(u);
 
-        if (!mem.eql(u8, parsedURI.scheme, "file")) {
+        if (isNetworkScheme(parsedURI.scheme)) {
             if (parsedURI.host) |host| {
                 if (host.isEmpty()) {
                     return error.NoHost;
@@ -131,7 +139,15 @@ pub const Tab = struct {
             return error.NullHost;
         }
 
-        return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = 0, .host = "", .path = parsedURI.path.percent_encoded, .stream = null, .secure = false, .bundle = null, .viewSource = false };
+        if (mem.eql(u8, parsedURI.scheme, "file")) {
+            return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = 0, .host = "", .path = parsedURI.path.percent_encoded, .stream = null, .secure = false, .bundle = null, .viewSource = false };
+        }
+
+        if (mem.eql(u8, parsedURI.scheme, "data")) {
+            return Tab{ .rawURL = u, .scheme = parsedURI.scheme, .port = 0, .host = "", .path = parsedURI.path.percent_encoded, .stream = null, .secure = false, .bundle = null, .viewSource = false };
+        }
+
+        return error.UnsupportedScheme;
     }
 
     pub fn deinit(self: *Tab, allocator: mem.Allocator) void {
@@ -182,7 +198,15 @@ pub const Tab = struct {
             return try allocator.dupe(u8, buf[0..contentLength]);
         }
 
-        if (mem.eql(u8, self.scheme, "data")) {}
+        if (mem.eql(u8, self.scheme, "data")) {
+            var dataIter = mem.splitScalar(u8, self.path, ',');
+            if (mem.eql(u8, dataIter.first(), "text/html")) {
+                return allocator.dupe(u8, renderHTML(dataIter.rest()));
+            }
+
+            dataIter.reset();
+            return allocator.dupe(u8, dataIter.rest());
+        }
 
         return self.request();
     }

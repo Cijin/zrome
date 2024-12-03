@@ -65,6 +65,12 @@ pub fn main() void {
         return;
     }
 
+    if (std.mem.eql(u8, t.scheme, "data")) {
+        print("{s}\n", .{rawRes});
+        allocator.free(rawRes);
+        return;
+    }
+
     const res = browser.Response.parseResponse(rawRes, allocator) catch |err| {
         print("There was an error parsing that response: {}\n", .{err});
         return;

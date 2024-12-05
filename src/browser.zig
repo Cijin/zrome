@@ -14,7 +14,7 @@ const userAgent = "Zrome-0.0.1";
 
 const defaultHeaders = [_][2][]const u8{
     .{ "User-Agent", userAgent },
-    .{ "Connection", "close" },
+    .{ "Connection", "keep-alive" },
 };
 
 const responseError = error{
@@ -33,12 +33,13 @@ pub const Response = struct {
     status: []const u8,
     statusCode: u16,
     protocol: []const u8,
-    headers: []const u8,
+    headers: [][2][]const u8,
     body: []const u8,
 
     pub fn parseResponse(buffer: []u8, allocator: mem.Allocator) !*Response {
         var iter = mem.splitSequence(u8, buffer, "\r\n\r\n");
         var headIter = mem.splitSequence(u8, iter.first(), "\r\n");
+        // Todo: sperate heads into key | value
 
         const statusLine = headIter.first();
 
@@ -68,8 +69,24 @@ pub const Response = struct {
             return error.MissingStatusInfo;
         }
 
+        var headers: [32][2][]const u8 = undefined;
+        var contentLength: u32 = 0;
+        var idx: usize = 0;
+        while (headIter.next()) |line| {
+            var headerLineIter = mem.splitSequence(u8, line, ": ");
+            headers[idx][0] = headerLineIter.first();
+            headers[idx][1] = headerLineIter.rest();
+
+            if (mem.eql(u8, headers[idx][0], "Content-Length")) {
+                contentLength = try fmt.parseInt(u32, headers[idx][1], 10);
+            }
+
+            idx += 1;
+        }
+
+        const body = iter.rest();
         const res = try allocator.create(Response);
-        res.* = Response{ .status = status, .statusCode = statusCode, .protocol = protocol, .headers = headIter.rest(), .body = try allocator.dupe(u8, iter.rest()) };
+        res.* = Response{ .status = status, .statusCode = statusCode, .protocol = protocol, .headers = headers[0..], .body = try allocator.dupe(u8, body[0..contentLength]) };
         return res;
     }
 
@@ -236,19 +253,18 @@ pub const Tab = struct {
 
         const req = reqStream.getWritten();
         var resBuf: [8192]u8 = undefined;
-        var bytesRead: usize = 0;
         if (self.stream) |stream| {
             if (self.secure) {
                 var tlsConn = try crypto.tls.Client.init(stream, self.bundle.?, self.host);
                 _ = try tlsConn.write(stream, req);
-                bytesRead = try tlsConn.readAll(stream, &resBuf);
+                _ = try tlsConn.read(stream, &resBuf);
             } else {
                 _ = try stream.write(req);
-                bytesRead = try stream.readAll(&resBuf);
+                _ = try stream.read(&resBuf);
             }
         } else unreachable;
 
-        return resBuf[0..bytesRead];
+        return resBuf[0..];
     }
 };
 

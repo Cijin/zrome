@@ -71,16 +71,16 @@ pub fn main() void {
         return;
     }
 
-    if (t.viewSource) {
-        print("{s}\n", .{rawRes});
-        return;
-    }
-
     const res = browser.Response.parseResponse(rawRes, allocator) catch |err| {
         print("There was an error parsing that response: {}\n", .{err});
         return;
     };
     defer res.free(allocator);
+
+    if (t.viewSource) {
+        print("{s}\n", .{res.body});
+        return;
+    }
 
     const html = browser.renderHTML(res.body);
     print("Body: {s}\n", .{html});

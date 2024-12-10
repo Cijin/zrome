@@ -5,6 +5,8 @@ const heap = std.heap;
 const io = std.io;
 const browser = @import("browser.zig");
 
+const maxRedirects: u8 = 5;
+
 pub fn main() void {
     const stdin = io.getStdIn().reader();
     const stdout = io.getStdOut().writer();
@@ -54,7 +56,7 @@ pub fn main() void {
     };
     defer t.deinit(allocator);
 
-    const rawRes = t.process(allocator) catch |err| {
+    var rawRes = t.process(allocator) catch |err| {
         print("There was an error making that request: {}\n", .{err});
         return;
     };
@@ -71,11 +73,57 @@ pub fn main() void {
         return;
     }
 
-    const res = browser.Response.parseResponse(rawRes, allocator) catch |err| {
+    var res = browser.Response.parseResponse(rawRes, allocator) catch |err| {
         print("There was an error parsing that response: {}\n", .{err});
         return;
     };
     defer res.free(allocator);
+
+    if (res.statusCode >= 300 and res.statusCode < 400) {
+        var redirectCount: u8 = 0;
+        var isRedirectStatus = true;
+        while (isRedirectStatus and redirectCount < maxRedirects) {
+            redirectCount += 1;
+            const location = res.getHeader("Location") catch {
+                print("Redirect request is missing location header\n", .{});
+                return;
+            };
+
+            if (location[0] == '/') {
+                rawRes = t.redirect(location) catch |err| {
+                    print("Redirect req failed: {}\n", .{err});
+                    return;
+                };
+            } else {
+                const redirectURI = std.Uri.parse(location) catch |err| {
+                    print("Redirect URI is invalid. Err:{}\n", .{err});
+                    return;
+                };
+
+                if (redirectURI.host) |redirectHost| {
+                    if (std.mem.eql(u8, redirectHost.percent_encoded, t.host)) {
+                        rawRes = t.redirect(redirectURI.path.percent_encoded) catch |err| {
+                            print("Redirect req failed: {}\n", .{err});
+                            return;
+                        };
+                    }
+                }
+                // Todo: otherwise get new t ??
+            }
+
+            res.free(allocator);
+            res = browser.Response.parseResponse(rawRes, allocator) catch |err| {
+                print("Unable to parse redirect response: {}\n", .{err});
+                return;
+            };
+            print("Status {d}\n", .{res.statusCode});
+            isRedirectStatus = res.statusCode >= 300 and res.statusCode < 400;
+        }
+
+        if (redirectCount >= maxRedirects) {
+            print("Max redirect loop of {d} reached", .{maxRedirects});
+        }
+    }
 
     if (t.viewSource) {
         print("{s}\n", .{res.body});
@@ -83,7 +131,7 @@ pub fn main() void {
     }
 
     const html = browser.renderHTML(res.body);
-    print("Body: {s}\n", .{html});
+    print("{s}\n", .{html});
 
     return;
 }

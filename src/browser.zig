@@ -11,6 +11,7 @@ const crypto = std.crypto;
 
 const httpVer = "HTTP/1.1";
 const userAgent = "Zrome-0.0.1";
+const bodyBufferSize: u32 = 10 << 20;
 
 const defaultHeaders = [_][2][]const u8{
     .{ "User-Agent", userAgent },
@@ -23,6 +24,7 @@ const responseError = error{
     InvalidStatusCode,
     MissingStatusMsg,
     InvalidHeaderValue,
+    HeaderNonExistent,
 };
 
 const fileError = error{
@@ -86,8 +88,19 @@ pub const Response = struct {
 
         const body = iter.rest();
         const res = try allocator.create(Response);
-        res.* = Response{ .status = status, .statusCode = statusCode, .protocol = protocol, .headers = headers[0..], .body = try allocator.dupe(u8, body[0..contentLength]) };
+        res.* = Response{ .status = status, .statusCode = statusCode, .protocol = protocol, .headers = headers[0..idx], .body = try allocator.dupe(u8, body[0..contentLength]) };
         return res;
+    }
+
+    pub fn getHeader(self: *Response, key: []const u8) responseError![]const u8 {
+        for (self.headers) |header| {
+            //            std.debug.print("{s}:{s}\n", .{ header[0], header[1] });
+            if (mem.eql(u8, header[0], key)) {
+                return header[1];
+            }
+        }
+
+        return responseError.HeaderNonExistent;
     }
 
     pub fn free(self: *Response, allocator: mem.Allocator) void {
@@ -252,7 +265,7 @@ pub const Tab = struct {
         try reqWriter.writeAll("\r\n");
 
         const req = reqStream.getWritten();
-        var resBuf: [8192]u8 = undefined;
+        var resBuf: [bodyBufferSize]u8 = undefined;
         if (self.stream) |stream| {
             if (self.secure) {
                 var tlsConn = try crypto.tls.Client.init(stream, self.bundle.?, self.host);
@@ -266,13 +279,18 @@ pub const Tab = struct {
 
         return resBuf[0..];
     }
+
+    pub fn redirect(self: *Tab, path: []const u8) ![]u8 {
+        self.path = path;
+        return self.request();
+    }
 };
 
 // currently there is no rendering, it's super simple, as it just
 // returns the content without the tags
 pub fn renderHTML(body: []const u8) []u8 {
     // Todo: Entities
-    var buf: [8192]u8 = undefined;
+    var buf: [bodyBufferSize]u8 = undefined;
     var bufIdx: usize = 0;
     var i: usize = 0;
     var inTag: bool = false;

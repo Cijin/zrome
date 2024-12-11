@@ -84,10 +84,11 @@ pub fn main() void {
         var isRedirectStatus = true;
         while (isRedirectStatus and redirectCount < maxRedirects) {
             redirectCount += 1;
-            const location = res.getHeader("Location") catch {
+            var location = res.getHeader("Location") catch {
                 print("Redirect request is missing location header\n", .{});
                 return;
             };
+            location = std.mem.trim(u8, location, " ");
 
             if (location[0] == '/') {
                 rawRes = t.redirect(location) catch |err| {
@@ -116,7 +117,6 @@ pub fn main() void {
                 print("Unable to parse redirect response: {}\n", .{err});
                 return;
             };
-            print("Status {d}\n", .{res.statusCode});
             isRedirectStatus = res.statusCode >= 300 and res.statusCode < 400;
         }
 
@@ -130,6 +130,7 @@ pub fn main() void {
         return;
     }
 
+    // Todo: investigate why the html output is inconcsistent
     const html = browser.renderHTML(res.body);
     print("{s}\n", .{html});
 

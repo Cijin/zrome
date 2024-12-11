@@ -41,10 +41,8 @@ pub const Response = struct {
     pub fn parseResponse(buffer: []u8, allocator: mem.Allocator) !*Response {
         var iter = mem.splitSequence(u8, buffer, "\r\n\r\n");
         var headIter = mem.splitSequence(u8, iter.first(), "\r\n");
-        // Todo: sperate heads into key | value
 
         const statusLine = headIter.first();
-
         var statusIter = mem.splitScalar(u8, statusLine, ' ');
         const protocol = statusIter.first();
         if (protocol.len == 0) {
@@ -94,7 +92,6 @@ pub const Response = struct {
 
     pub fn getHeader(self: *Response, key: []const u8) responseError![]const u8 {
         for (self.headers) |header| {
-            //            std.debug.print("{s}:{s}\n", .{ header[0], header[1] });
             if (mem.eql(u8, header[0], key)) {
                 return header[1];
             }
@@ -289,7 +286,8 @@ pub const Tab = struct {
 // currently there is no rendering, it's super simple, as it just
 // returns the content without the tags
 pub fn renderHTML(body: []const u8) []u8 {
-    // Todo: Entities
+    assert(bodyBufferSize >= body.len);
+
     var buf: [bodyBufferSize]u8 = undefined;
     var bufIdx: usize = 0;
     var i: usize = 0;
@@ -314,7 +312,11 @@ pub fn renderHTML(body: []const u8) []u8 {
                     bufIdx += 1;
 
                     i += 3;
+                    continue;
                 }
+
+                buf[bufIdx] = body[i];
+                bufIdx += 1;
             },
             else => {
                 if (!inTag) {
@@ -324,5 +326,6 @@ pub fn renderHTML(body: []const u8) []u8 {
             },
         }
     }
+
     return buf[0..bufIdx];
 }

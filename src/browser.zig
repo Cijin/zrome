@@ -1,4 +1,5 @@
 const std = @import("std");
+const render = @import("render.zig");
 const assert = std.debug.assert;
 const mem = std.mem;
 const fmt = std.fmt;
@@ -233,7 +234,7 @@ pub const Tab = struct {
         if (mem.eql(u8, self.scheme, "data")) {
             var dataIter = mem.splitScalar(u8, self.path, ',');
             if (mem.eql(u8, dataIter.first(), "text/html")) {
-                return allocator.dupe(u8, renderHTML(dataIter.rest()));
+                return allocator.dupe(u8, render.renderHTML(dataIter.rest()));
             }
 
             dataIter.reset();
@@ -277,55 +278,10 @@ pub const Tab = struct {
         return resBuf[0..];
     }
 
+    // Todo: cache 200 GET requests
+    // Todo: handle compression
     pub fn redirect(self: *Tab, path: []const u8) ![]u8 {
         self.path = path;
         return self.request();
     }
 };
-
-// currently there is no rendering, it's super simple, as it just
-// returns the content without the tags
-pub fn renderHTML(body: []const u8) []u8 {
-    assert(bodyBufferSize >= body.len);
-
-    var buf: [bodyBufferSize]u8 = undefined;
-    var bufIdx: usize = 0;
-    var i: usize = 0;
-    var inTag: bool = false;
-
-    while (i < body.len) : (i += 1) {
-        switch (body[i]) {
-            '>' => inTag = false,
-            '<' => inTag = true,
-            '&' => {
-                if (inTag) continue;
-
-                var entity: ?u8 = null;
-                if (body[i + 1] == 'l' and body[i + 2] == 't' and body[i + 3] == ';') {
-                    entity = '<';
-                } else if (body[i + 1] == 'g' and body[i + 2] == 't' and body[i + 3] == ';') {
-                    entity = '>';
-                }
-
-                if (entity) |e| {
-                    buf[bufIdx] = e;
-                    bufIdx += 1;
-
-                    i += 3;
-                    continue;
-                }
-
-                buf[bufIdx] = body[i];
-                bufIdx += 1;
-            },
-            else => {
-                if (!inTag) {
-                    buf[bufIdx] = body[i];
-                    bufIdx += 1;
-                }
-            },
-        }
-    }
-
-    return buf[0..bufIdx];
-}

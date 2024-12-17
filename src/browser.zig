@@ -234,7 +234,7 @@ pub const Tab = struct {
         if (mem.eql(u8, self.scheme, "data")) {
             var dataIter = mem.splitScalar(u8, self.path, ',');
             if (mem.eql(u8, dataIter.first(), "text/html")) {
-                return allocator.dupe(u8, render.renderHTML(dataIter.rest()));
+                return allocator.dupe(u8, render.parseHTML(dataIter.rest()));
             }
 
             dataIter.reset();

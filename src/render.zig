@@ -5,35 +5,28 @@ const mem = std.mem;
 
 const bodyBufferSize: u32 = 10 << 20;
 
-pub fn drawWindow() !void {
-    const screenwidth = 800;
-    const screenheight = 450;
+pub fn drawWindow(responseText: [*:0]const u8) !void {
+    const screenWidth = 800;
+    const screenHeight = 450;
 
-    rl.initWindow(screenwidth, screenheight, "zrome v0.0.2");
+    rl.initWindow(screenWidth, screenHeight, "Zrome v0.0.2");
     defer rl.closeWindow();
 
     rl.setTargetFPS(60);
 
-    while (!rl.windowShouldClose()) { // Detect window close button or ESC key
-        // Update
-        //----------------------------------------------------------------------------------
-        // TODO: Update your variables here
-        //----------------------------------------------------------------------------------
-
-        // Draw
-        //----------------------------------------------------------------------------------
+    while (!rl.windowShouldClose()) {
         rl.beginDrawing();
         defer rl.endDrawing();
 
         rl.clearBackground(rl.Color.white);
 
-        rl.drawText("Congrats! You created your first window!", 190, 200, 20, rl.Color.light_gray);
+        rl.drawText(responseText, 0, 0, 12, rl.Color.dark_gray);
     }
 }
 
 // currently there is no rendering, it's super simple, as it just
 // returns the content without the tags
-pub fn renderHTML(body: []const u8) []u8 {
+pub fn parseHTML(body: []const u8) []u8 {
     assert(bodyBufferSize >= body.len);
 
     var buf: [bodyBufferSize]u8 = undefined;

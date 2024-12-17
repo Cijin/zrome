@@ -10,8 +10,8 @@ const uri = std.Uri;
 const http = std.http;
 const crypto = std.crypto;
 
+pub const userAgent = "zrome-0.0.2";
 const httpVer = "HTTP/1.1";
-const userAgent = "Zrome-0.0.1";
 const bodyBufferSize: u32 = 10 << 20;
 
 const defaultHeaders = [_][2][]const u8{

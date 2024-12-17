@@ -1,5 +1,6 @@
 const std = @import("std");
 const rl = @import("raylib");
+const browser = @import("browser.zig");
 const assert = std.debug.assert;
 const mem = std.mem;
 
@@ -7,9 +8,9 @@ const bodyBufferSize: u32 = 10 << 20;
 
 pub fn drawWindow(responseText: [*:0]const u8) !void {
     const screenWidth = 800;
-    const screenHeight = 450;
+    const screenHeight = 1200;
 
-    rl.initWindow(screenWidth, screenHeight, "Zrome v0.0.2");
+    rl.initWindow(screenWidth, screenHeight, browser.userAgent);
     defer rl.closeWindow();
 
     rl.setTargetFPS(60);

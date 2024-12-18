@@ -69,5 +69,8 @@ pub fn parseHTML(body: []const u8) []u8 {
         }
     }
 
+    buf[bufIdx] = 0;
+    bufIdx += 1;
+
     return buf[0..bufIdx];
 }

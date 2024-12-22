@@ -1,19 +1,31 @@
 const std = @import("std");
 const rl = @import("raylib");
 const browser = @import("browser.zig");
+const unicode = std.unicode;
+const utf8View = unicode.Utf8View;
 const assert = std.debug.assert;
 const mem = std.mem;
 
 const bodyBufferSize: u32 = 10 << 20;
 
-pub fn drawWindow(responseText: [*:0]const u8) !void {
+pub fn drawWindow(text: []u8) !void {
     const screenWidth = 800;
-    const screenHeight = 1200;
+    const screenHeight = 600;
+
+    const uv = try utf8View.init(text);
+    var utfIterator = uv.iterator();
 
     rl.initWindow(screenWidth, screenHeight, browser.userAgent);
     defer rl.closeWindow();
 
+    const font = rl.loadFont("resources/font/mono.ttf");
+    defer font.unload();
+    const fontSize: f32 = 12;
+
+    assert(font.baseSize > 0);
+
     rl.setTargetFPS(60);
+    const position = rl.Vector2.init(screenWidth / 2, screenHeight / 2);
 
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
@@ -21,7 +33,9 @@ pub fn drawWindow(responseText: [*:0]const u8) !void {
 
         rl.clearBackground(rl.Color.white);
 
-        rl.drawText(responseText, 0, 0, 12, rl.Color.dark_gray);
+        while (utfIterator.nextCodepoint()) |codepoint| {
+            rl.drawTextCodepoint(font, @as(i32, @intCast(codepoint)), position, fontSize, rl.Color.black);
+        }
     }
 }
 

@@ -244,7 +244,7 @@ pub const Tab = struct {
         return self.request();
     }
 
-    fn request(self: *Tab) ![]u8 {
+    pub fn request(self: *Tab) ![]u8 {
         assert(self.stream != null);
         assert(self.bundle != null);
 

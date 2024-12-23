@@ -134,7 +134,8 @@ pub fn main() void {
 
     // Todo: investigate why the html output is inconcsistent
     const html = render.parseHTML(res.body);
-    render.drawWindow(html) catch |err| {
+    const ptrCastHtml: [*:0]const u8 = @ptrCast(html.ptr);
+    render.drawWindow(ptrCastHtml) catch |err| {
         print("Error drawing screen: {}\n", .{err});
         return;
     };

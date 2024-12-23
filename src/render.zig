@@ -8,24 +8,29 @@ const mem = std.mem;
 
 const bodyBufferSize: u32 = 10 << 20;
 
-pub fn drawWindow(text: []u8) !void {
-    const screenWidth = 800;
-    const screenHeight = 600;
-
-    const uv = try utf8View.init(text);
-    var utfIterator = uv.iterator();
+pub fn drawWindow(text: [*:0]const u8) !void {
+    const screenWidth = 1200;
+    const screenHeight = 800;
+    const linespacing = 1;
+    const fontsize = 12;
 
     rl.initWindow(screenWidth, screenHeight, browser.userAgent);
     defer rl.closeWindow();
 
-    const font = rl.loadFont("resources/font/mono.ttf");
+    const codepoints = try rl.loadCodepoints(text);
+    defer rl.unloadCodepoints(codepoints);
+
+    // Todo: use loadfont ex instead
+    const font = rl.loadFontEx("resources/font/mono.ttf", fontsize, codepoints);
     defer font.unload();
-    const fontSize: f32 = 12;
+
+    rl.setTextureFilter(font.texture, rl.TextureFilter.texture_filter_bilinear);
+    rl.setTextLineSpacing(linespacing);
 
     assert(font.baseSize > 0);
 
     rl.setTargetFPS(60);
-    const position = rl.Vector2.init(screenWidth / 2, screenHeight / 2);
+    const position = rl.Vector2.init(0, 0);
 
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
@@ -33,9 +38,7 @@ pub fn drawWindow(text: []u8) !void {
 
         rl.clearBackground(rl.Color.white);
 
-        while (utfIterator.nextCodepoint()) |codepoint| {
-            rl.drawTextCodepoint(font, @as(i32, @intCast(codepoint)), position, fontSize, rl.Color.black);
-        }
+        rl.drawTextEx(font, text, position, fontsize, linespacing, rl.Color.gray);
     }
 }
 
@@ -83,6 +86,7 @@ pub fn parseHTML(body: []const u8) []u8 {
         }
     }
 
+    // raylib expects null terminated string
     buf[bufIdx] = 0;
     bufIdx += 1;
 

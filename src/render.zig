@@ -17,10 +17,10 @@ pub fn drawWindow(text: [*:0]const u8) !void {
     rl.initWindow(screenWidth, screenHeight, browser.userAgent);
     defer rl.closeWindow();
 
+    // Todo: remove duplicate codepoint to keep the font atlas small
     const codepoints = try rl.loadCodepoints(text);
     defer rl.unloadCodepoints(codepoints);
 
-    // Todo: use loadfont ex instead
     const font = rl.loadFontEx("resources/font/mono.ttf", fontsize, codepoints);
     defer font.unload();
 
@@ -30,7 +30,7 @@ pub fn drawWindow(text: [*:0]const u8) !void {
     assert(font.baseSize > 0);
 
     rl.setTargetFPS(60);
-    const position = rl.Vector2.init(0, 0);
+    //const position = rl.Vector2.init(0, 0);
 
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
@@ -38,7 +38,23 @@ pub fn drawWindow(text: [*:0]const u8) !void {
 
         rl.clearBackground(rl.Color.white);
 
-        rl.drawTextEx(font, text, position, fontsize, linespacing, rl.Color.gray);
+        // Todo: print text individually, refer to:
+        // https://www.raylib.com/examples.html ---> bounded box text example
+        for (0..text.len) |i| {
+            var codepointByteCount: i32 = 0;
+            const codepoint = rl.getCodepoint(&text[i], &codepointByteCount);
+            // const index = rl.getGlyphIndex(font, codepoint);
+
+            if (codepoint == 0x3f) {
+                codepointByteCount = 1;
+            }
+            i += (codepointByteCount - 1);
+
+            // Todo:
+            // get glyph width
+            // handle new lines and breaking text horizontally to avoid overflow
+            // keep track of line numbers
+        }
     }
 }
 

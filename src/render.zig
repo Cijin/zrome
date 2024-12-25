@@ -8,7 +8,7 @@ const mem = std.mem;
 
 const bodyBufferSize: u32 = 10 << 20;
 
-pub fn drawWindow(text: [*:0]const u8) !void {
+pub fn drawWindow(text: []u8) !void {
     const screenWidth = 1200;
     const screenHeight = 800;
     const linespacing = 1;
@@ -18,7 +18,7 @@ pub fn drawWindow(text: [*:0]const u8) !void {
     defer rl.closeWindow();
 
     // Todo: remove duplicate codepoint to keep the font atlas small
-    const codepoints = try rl.loadCodepoints(text);
+    const codepoints = try rl.loadCodepoints(@ptrCast(text.ptr));
     defer rl.unloadCodepoints(codepoints);
 
     const font = rl.loadFontEx("resources/font/mono.ttf", fontsize, codepoints);
@@ -30,7 +30,7 @@ pub fn drawWindow(text: [*:0]const u8) !void {
     assert(font.baseSize > 0);
 
     rl.setTargetFPS(60);
-    //const position = rl.Vector2.init(0, 0);
+    const position = rl.Vector2.init(0, 0);
 
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
@@ -38,17 +38,23 @@ pub fn drawWindow(text: [*:0]const u8) !void {
 
         rl.clearBackground(rl.Color.white);
 
-        // Todo: print text individually, refer to:
-        // https://www.raylib.com/examples.html ---> bounded box text example
-        for (0..text.len) |i| {
+        var wordStart: usize = 0;
+        for (text, 0..text.len) |char, i| {
             var codepointByteCount: i32 = 0;
-            const codepoint = rl.getCodepoint(&text[i], &codepointByteCount);
-            // const index = rl.getGlyphIndex(font, codepoint);
-
-            if (codepoint == 0x3f) {
-                codepointByteCount = 1;
+            var codepoint: i32 = 0;
+            switch (char) {
+                ' ' => {
+                    // Todo: calculate new position
+                    std.debug.print("Word: {s}\n", .{text[wordStart..i]});
+                    codepoint = rl.getCodepoint(@ptrCast(text[wordStart..i]), &codepointByteCount);
+                    wordStart = i + 1;
+                },
+                '\n' => {},
+                else => continue,
             }
-            i += (codepointByteCount - 1);
+
+            // const index = rl.getGlyphIndex(font, codepoint);
+            rl.drawTextCodepoint(font, codepoint, position, fontsize, rl.Color.gray);
 
             // Todo:
             // get glyph width

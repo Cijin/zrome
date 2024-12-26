@@ -8,10 +8,13 @@ const mem = std.mem;
 
 const bodyBufferSize: u32 = 10 << 20;
 const screenWidth = 1200;
+const xStart = 10;
+const xMax = screenWidth - 10;
+const yStart = 1;
 const screenHeight = 800;
 const linespacing = 1;
 const spacing = 1;
-const fontsize = 12;
+const fontsize = 13;
 
 pub fn drawWindow(text: []const u8) !void {
     rl.initWindow(screenWidth, screenHeight, browser.userAgent);
@@ -36,7 +39,7 @@ pub fn drawWindow(text: []const u8) !void {
         rl.beginDrawing();
         defer rl.endDrawing();
 
-        position = rl.Vector2.init(0, 0);
+        position = rl.Vector2.init(xStart, yStart);
         rl.clearBackground(rl.Color.white);
 
         var wordStartIdx: usize = 0;
@@ -53,11 +56,14 @@ pub fn drawWindow(text: []const u8) !void {
                     wordStartIdx = wordEndIdx;
                     wordEndIdx = i + 1;
                 },
-                '\n' => {},
+                '\n' => {
+                    // Todo: add line break
+                },
                 else => {
                     if (i + 1 == text.len) {
                         wordStartIdx = wordEndIdx;
                         wordEndIdx = i + 1;
+
                         const word = text[wordStartIdx..wordEndIdx];
                         @memcpy(buffer[0..word.len], word);
                         buffer[word.len] = 0;
@@ -74,9 +80,14 @@ pub fn drawWindow(text: []const u8) !void {
             const word = text[wordStartIdx..wordEndIdx];
             @memcpy(buffer[0..word.len], word);
             buffer[word.len] = 0;
+
+            const updatedX = @as(f32, rl.measureTextEx(font, @ptrCast(&buffer[0]), fontsize, spacing).x);
+            if ((updatedX + position.x) > xMax) {
+                position.y += @as(f32, yStart + fontsize + linespacing);
+                position.x = xStart;
+            }
             drawWord(@ptrCast(&buffer[0]), font, position);
-            // Todo: wrap word
-            position.x += @as(f32, rl.measureTextEx(font, @ptrCast(&buffer[0]), fontsize, spacing).x);
+            position.x += updatedX;
         }
     }
 }

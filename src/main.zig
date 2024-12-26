@@ -134,7 +134,7 @@ pub fn main() void {
     //
     //    // Todo: investigate why the html output is inconcsistent
     //    const html = render.parseHTML(res.body);
-    render.drawWindow("hello world of zig raylib") catch |err| {
+    render.drawWindow("hhello world of zig raylibhello world of zig raylibhello world of zig raylibhello world of zig raylibhello world of zig raylibello world of zig raylib") catch |err| {
         print("Error drawing screen: {}\n", .{err});
         return;
     };

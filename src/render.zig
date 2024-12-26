@@ -74,6 +74,8 @@ pub fn drawWindow(text: []const u8) !void {
                     drawWord(@ptrCast(&buffer[0]), font, position);
                     position.x = xStart;
                     position.y += yStart + linespacing + fontsize;
+
+                    continue;
                 },
                 else => {
                     if (i + 1 == text.len) {

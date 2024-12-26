@@ -10,7 +10,7 @@ const bodyBufferSize: u32 = 10 << 20;
 const screenWidth = 1200;
 const xStart = 10;
 const xMax = screenWidth - 10;
-const yStart = 1;
+const yStart = 10;
 const screenHeight = 800;
 const linespacing = 1;
 const spacing = 1;
@@ -57,7 +57,23 @@ pub fn drawWindow(text: []const u8) !void {
                     wordEndIdx = i + 1;
                 },
                 '\n' => {
+                    // print everything upto this point
+                    wordStartIdx = wordEndIdx;
+                    wordEndIdx = i;
                     // Todo: add line break
+                    const word = text[wordStartIdx..wordEndIdx];
+                    @memcpy(buffer[0..word.len], word);
+                    buffer[word.len] = 0;
+
+                    const updatedX = @as(f32, rl.measureTextEx(font, @ptrCast(&buffer[0]), fontsize, spacing).x);
+                    if ((updatedX + position.x) > xMax) {
+                        // wrap word
+                        position.y += @as(f32, yStart + fontsize + linespacing);
+                        position.x = xStart;
+                    }
+                    drawWord(@ptrCast(&buffer[0]), font, position);
+                    position.x = xStart;
+                    position.y += yStart + linespacing + fontsize;
                 },
                 else => {
                     if (i + 1 == text.len) {

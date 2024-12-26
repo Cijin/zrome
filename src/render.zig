@@ -56,6 +56,8 @@ pub fn drawWindow(text: []const u8) !void {
                     wordStartIdx = wordEndIdx;
                     wordEndIdx = i + 1;
                 },
+                // Todo: handle other forms of spaces
+                // example: \t
                 '\n' => {
                     // print everything upto this point
                     wordStartIdx = wordEndIdx;

@@ -1,3 +1,6 @@
+### 26 Dec 2024: Line breaks and reponse from actual server
+![2024-12-26_18-02](https://github.com/user-attachments/assets/82bfbcf1-4d3b-4863-9718-f5aa834ef78e)
+
 ### 26 Dec 2024: Print one word at a time and wrap words
 ![2024-12-26_17-52](https://github.com/user-attachments/assets/ef787280-af2b-4d3a-8b05-f11501bf707d)
 

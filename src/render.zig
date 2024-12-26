@@ -7,13 +7,13 @@ const assert = std.debug.assert;
 const mem = std.mem;
 
 const bodyBufferSize: u32 = 10 << 20;
+const screenWidth = 1200;
+const screenHeight = 800;
+const linespacing = 1;
+const spacing = 1;
+const fontsize = 12;
 
-pub fn drawWindow(text: []u8) !void {
-    const screenWidth = 1200;
-    const screenHeight = 800;
-    const linespacing = 1;
-    const fontsize = 12;
-
+pub fn drawWindow(text: []const u8) !void {
     rl.initWindow(screenWidth, screenHeight, browser.userAgent);
     defer rl.closeWindow();
 
@@ -30,38 +30,59 @@ pub fn drawWindow(text: []u8) !void {
     assert(font.baseSize > 0);
 
     rl.setTargetFPS(60);
-    const position = rl.Vector2.init(0, 0);
+    var position: rl.Vector2 = undefined;
 
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
         defer rl.endDrawing();
 
+        position = rl.Vector2.init(0, 0);
         rl.clearBackground(rl.Color.white);
 
-        var wordStart: usize = 0;
-        for (text, 0..text.len) |char, i| {
-            var codepointByteCount: i32 = 0;
-            var codepoint: i32 = 0;
-            switch (char) {
-                ' ' => {
-                    // Todo: calculate new position
-                    std.debug.print("Word: {s}\n", .{text[wordStart..i]});
-                    codepoint = rl.getCodepoint(@ptrCast(text[wordStart..i]), &codepointByteCount);
-                    wordStart = i + 1;
-                },
-                '\n' => {},
-                else => continue,
+        var wordStartIdx: usize = 0;
+        var wordEndIdx: usize = 0;
+        var buffer: [100]u8 = undefined;
+        var finalWordPrinted: bool = false;
+        for (text, 0..) |char, i| {
+            if (finalWordPrinted) {
+                break;
             }
 
-            // const index = rl.getGlyphIndex(font, codepoint);
-            rl.drawTextCodepoint(font, codepoint, position, fontsize, rl.Color.gray);
+            switch (char) {
+                ' ' => {
+                    wordStartIdx = wordEndIdx;
+                    wordEndIdx = i + 1;
+                },
+                '\n' => {},
+                else => {
+                    if (i + 1 == text.len) {
+                        wordStartIdx = wordEndIdx;
+                        wordEndIdx = i + 1;
+                        const word = text[wordStartIdx..wordEndIdx];
+                        @memcpy(buffer[0..word.len], word);
+                        buffer[word.len] = 0;
+                        drawWord(@ptrCast(&buffer[0]), font, position);
 
-            // Todo:
-            // get glyph width
-            // handle new lines and breaking text horizontally to avoid overflow
-            // keep track of line numbers
+                        finalWordPrinted = true;
+                        break;
+                    }
+
+                    continue;
+                },
+            }
+
+            const word = text[wordStartIdx..wordEndIdx];
+            @memcpy(buffer[0..word.len], word);
+            buffer[word.len] = 0;
+            drawWord(@ptrCast(&buffer[0]), font, position);
+            // Todo: wrap word
+            position.x += @as(f32, rl.measureTextEx(font, @ptrCast(&buffer[0]), fontsize, spacing).x);
         }
     }
+}
+
+fn drawWord(word: [*:0]const u8, font: rl.Font, position: rl.Vector2) void {
+    rl.drawTextEx(font, word, position, fontsize, linespacing, rl.Color.gray);
 }
 
 // currently there is no rendering, it's super simple, as it just

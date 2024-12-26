@@ -83,6 +83,7 @@ pub fn drawWindow(text: []const u8) !void {
 
             const updatedX = @as(f32, rl.measureTextEx(font, @ptrCast(&buffer[0]), fontsize, spacing).x);
             if ((updatedX + position.x) > xMax) {
+                // wrap word
                 position.y += @as(f32, yStart + fontsize + linespacing);
                 position.x = xStart;
             }

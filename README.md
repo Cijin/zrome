@@ -1,3 +1,6 @@
+### 26 Dec 2024: Print one word at a time and wrap words
+![2024-12-26_17-52](https://github.com/user-attachments/assets/ef787280-af2b-4d3a-8b05-f11501bf707d)
+
 ### 23 Dec 2024: Using codpoints to render text, looking quite good
 ![2024-12-23_08-15](https://github.com/user-attachments/assets/ef7d1ca8-7e06-4700-bf37-22622dcfc8ad)
 

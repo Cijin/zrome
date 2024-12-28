@@ -134,7 +134,7 @@ pub fn main() void {
 
     // Todo: investigate why the html output is inconcsistent
     const html = render.parseHTML(res.body);
-    render.drawWindow(html) catch |err| {
+    render.drawWindow(allocator, html) catch |err| {
         print("Error drawing screen: {}\n", .{err});
         return;
     };

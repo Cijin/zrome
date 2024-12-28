@@ -16,7 +16,93 @@ const linespacing = 1;
 const spacing = 1;
 const fontsize = 13;
 
-pub fn drawWindow(text: []const u8) !void {
+const wordPosition = struct {
+    word: []const u8,
+    x: f32,
+    y: f32,
+};
+
+fn populateWordPositions(allocator: mem.Allocator, text: []const u8, font: rl.Font, wps: []wordPosition) !void {
+    var position = rl.Vector2.init(xStart, yStart);
+    var wordStartIdx: usize = 0;
+    var wordEndIdx: usize = 0;
+    var buffer: [128]u8 = undefined;
+    for (text, 0..) |char, i| {
+        switch (char) {
+            ' ' => {
+                wordStartIdx = wordEndIdx;
+                wordEndIdx = i + 1;
+            },
+            // Todo: handle other forms of spaces
+            // example: \t
+            '\n' => {
+                // print everything upto this point
+                wordStartIdx = wordEndIdx;
+                wordEndIdx = i;
+                const word = text[wordStartIdx..wordEndIdx];
+                @memcpy(buffer[0..word.len], word);
+                buffer[word.len] = 0;
+
+                const updatedX = @as(f32, rl.measureTextEx(font, @ptrCast(&buffer[0]), fontsize, spacing).x);
+                if ((updatedX + position.x) > xMax) {
+                    // wrap word
+                    position.y += @as(f32, yStart + fontsize + linespacing);
+                    position.x = xStart;
+                }
+                const wordCopy = try allocator.dupe(u8, buffer[0 .. word.len + 1]);
+                wps[i] = wordPosition{
+                    .word = wordCopy,
+                    .x = position.x,
+                    .y = position.y,
+                };
+                position.x = xStart;
+                position.y += yStart + linespacing + fontsize;
+
+                continue;
+            },
+            else => {
+                if (i + 1 == text.len) {
+                    wordStartIdx = wordEndIdx;
+                    wordEndIdx = i + 1;
+
+                    const word = text[wordStartIdx..wordEndIdx];
+                    @memcpy(buffer[0..word.len], word);
+                    buffer[word.len] = 0;
+                    const wordCopy = try allocator.dupe(u8, buffer[0 .. word.len + 1]);
+                    wps[i] = wordPosition{
+                        .word = wordCopy,
+                        .x = position.x,
+                        .y = position.y,
+                    };
+
+                    break;
+                }
+
+                continue;
+            },
+        }
+
+        const word = text[wordStartIdx..wordEndIdx];
+        @memcpy(buffer[0..word.len], word);
+        buffer[word.len] = 0;
+
+        const updatedX = @as(f32, rl.measureTextEx(font, @ptrCast(&buffer[0]), fontsize, spacing).x);
+        if ((updatedX + position.x) > xMax) {
+            // wrap word
+            position.y += @as(f32, yStart + fontsize + linespacing);
+            position.x = xStart;
+        }
+        const wordCopy = try allocator.dupe(u8, buffer[0 .. word.len + 1]);
+        wps[i] = wordPosition{
+            .word = wordCopy,
+            .x = position.x,
+            .y = position.y,
+        };
+        position.x += updatedX;
+    }
+}
+
+pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
     rl.initWindow(screenWidth, screenHeight, browser.userAgent);
     defer rl.closeWindow();
 
@@ -33,82 +119,29 @@ pub fn drawWindow(text: []const u8) !void {
     assert(font.baseSize > 0);
 
     rl.setTargetFPS(60);
-    var position: rl.Vector2 = undefined;
+
+    var wps: [8192]wordPosition = undefined;
+    defer {
+        for (wps) |wp| {
+            allocator.free(wp.word);
+        }
+    }
+    // Todo: fix this
+    try populateWordPositions(allocator, text, font, &wps);
 
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
         defer rl.endDrawing();
 
-        position = rl.Vector2.init(xStart, yStart);
+        var position = rl.Vector2.init(xStart, yStart);
         rl.clearBackground(rl.Color.white);
 
-        var wordStartIdx: usize = 0;
-        var wordEndIdx: usize = 0;
-        var buffer: [100]u8 = undefined;
-        var finalWordPrinted: bool = false;
-        for (text, 0..) |char, i| {
-            if (finalWordPrinted) {
-                break;
-            }
-
-            switch (char) {
-                ' ' => {
-                    wordStartIdx = wordEndIdx;
-                    wordEndIdx = i + 1;
-                },
-                // Todo: handle other forms of spaces
-                // example: \t
-                '\n' => {
-                    // print everything upto this point
-                    wordStartIdx = wordEndIdx;
-                    wordEndIdx = i;
-                    // Todo: add line break
-                    const word = text[wordStartIdx..wordEndIdx];
-                    @memcpy(buffer[0..word.len], word);
-                    buffer[word.len] = 0;
-
-                    const updatedX = @as(f32, rl.measureTextEx(font, @ptrCast(&buffer[0]), fontsize, spacing).x);
-                    if ((updatedX + position.x) > xMax) {
-                        // wrap word
-                        position.y += @as(f32, yStart + fontsize + linespacing);
-                        position.x = xStart;
-                    }
-                    drawWord(@ptrCast(&buffer[0]), font, position);
-                    position.x = xStart;
-                    position.y += yStart + linespacing + fontsize;
-
-                    continue;
-                },
-                else => {
-                    if (i + 1 == text.len) {
-                        wordStartIdx = wordEndIdx;
-                        wordEndIdx = i + 1;
-
-                        const word = text[wordStartIdx..wordEndIdx];
-                        @memcpy(buffer[0..word.len], word);
-                        buffer[word.len] = 0;
-                        drawWord(@ptrCast(&buffer[0]), font, position);
-
-                        finalWordPrinted = true;
-                        break;
-                    }
-
-                    continue;
-                },
-            }
-
-            const word = text[wordStartIdx..wordEndIdx];
-            @memcpy(buffer[0..word.len], word);
-            buffer[word.len] = 0;
-
-            const updatedX = @as(f32, rl.measureTextEx(font, @ptrCast(&buffer[0]), fontsize, spacing).x);
-            if ((updatedX + position.x) > xMax) {
-                // wrap word
-                position.y += @as(f32, yStart + fontsize + linespacing);
-                position.x = xStart;
-            }
-            drawWord(@ptrCast(&buffer[0]), font, position);
-            position.x += updatedX;
+        for (wps) |wp| {
+            // Todo: fix this
+            std.debug.print("{s}:{d}:{d}\n", .{ wp.word, wp.x, wp.y });
+            position.x = wp.x;
+            position.y = wp.y;
+            drawWord(@ptrCast(wp.word), font, position);
         }
     }
 }

@@ -22,9 +22,10 @@ const wordPosition = struct {
     y: f32,
 };
 
-fn populateWordPositions(allocator: mem.Allocator, text: []const u8, font: rl.Font, wps: []wordPosition) !void {
+fn populateWordPositions(allocator: mem.Allocator, text: []const u8, font: rl.Font, wps: []wordPosition) !usize {
     var position = rl.Vector2.init(xStart, yStart);
     var wordStartIdx: usize = 0;
+    var wpsIdx: usize = 0;
     var wordEndIdx: usize = 0;
     var buffer: [128]u8 = undefined;
     for (text, 0..) |char, i| {
@@ -50,11 +51,12 @@ fn populateWordPositions(allocator: mem.Allocator, text: []const u8, font: rl.Fo
                     position.x = xStart;
                 }
                 const wordCopy = try allocator.dupe(u8, buffer[0 .. word.len + 1]);
-                wps[i] = wordPosition{
+                wps[wpsIdx] = wordPosition{
                     .word = wordCopy,
                     .x = position.x,
                     .y = position.y,
                 };
+                wpsIdx += 1;
                 position.x = xStart;
                 position.y += yStart + linespacing + fontsize;
 
@@ -69,11 +71,12 @@ fn populateWordPositions(allocator: mem.Allocator, text: []const u8, font: rl.Fo
                     @memcpy(buffer[0..word.len], word);
                     buffer[word.len] = 0;
                     const wordCopy = try allocator.dupe(u8, buffer[0 .. word.len + 1]);
-                    wps[i] = wordPosition{
+                    wps[wpsIdx] = wordPosition{
                         .word = wordCopy,
                         .x = position.x,
                         .y = position.y,
                     };
+                    wpsIdx += 1;
 
                     break;
                 }
@@ -93,13 +96,16 @@ fn populateWordPositions(allocator: mem.Allocator, text: []const u8, font: rl.Fo
             position.x = xStart;
         }
         const wordCopy = try allocator.dupe(u8, buffer[0 .. word.len + 1]);
-        wps[i] = wordPosition{
+        wps[wpsIdx] = wordPosition{
             .word = wordCopy,
             .x = position.x,
             .y = position.y,
         };
+        wpsIdx += 1;
         position.x += updatedX;
     }
+
+    return wpsIdx;
 }
 
 pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
@@ -121,13 +127,12 @@ pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
     rl.setTargetFPS(60);
 
     var wps: [8192]wordPosition = undefined;
+    const totalWords = try populateWordPositions(allocator, text, font, &wps);
     defer {
-        for (wps) |wp| {
+        for (wps[0..totalWords]) |wp| {
             allocator.free(wp.word);
         }
     }
-    // Todo: fix this
-    try populateWordPositions(allocator, text, font, &wps);
 
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
@@ -136,9 +141,7 @@ pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
         var position = rl.Vector2.init(xStart, yStart);
         rl.clearBackground(rl.Color.white);
 
-        for (wps) |wp| {
-            // Todo: fix this
-            std.debug.print("{s}:{d}:{d}\n", .{ wp.word, wp.x, wp.y });
+        for (wps[0..totalWords]) |wp| {
             position.x = wp.x;
             position.y = wp.y;
             drawWord(@ptrCast(wp.word), font, position);

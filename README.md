@@ -1,3 +1,6 @@
+### 31 Dec 2024: Implemented scroll
+https://github.com/user-attachments/assets/5e0adb0e-ed69-4cbd-8619-f59c8847dd8d
+
 ### 26 Dec 2024: Line breaks and reponse from actual server
 ![2024-12-26_18-02](https://github.com/user-attachments/assets/82bfbcf1-4d3b-4863-9718-f5aa834ef78e)
 

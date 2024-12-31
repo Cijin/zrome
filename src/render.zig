@@ -27,7 +27,9 @@ fn populateWordPositions(allocator: mem.Allocator, text: []const u8, font: rl.Fo
     var wordStartIdx: usize = 0;
     var wpsIdx: usize = 0;
     var wordEndIdx: usize = 0;
-    var buffer: [128]u8 = undefined;
+    var buffer: [8192]u8 = undefined;
+
+    // Todo: this can be done better
     for (text, 0..) |char, i| {
         switch (char) {
             ' ' => {
@@ -134,16 +136,28 @@ pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
         }
     }
 
+    var scroll: f32 = 0;
+    var mouseWheelMove: f32 = 0;
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
         defer rl.endDrawing();
+
+        mouseWheelMove = rl.getMouseWheelMove();
+        if (mouseWheelMove != 0) {
+            if (mouseWheelMove > 0) {
+                scroll -= 50;
+            } else {
+                scroll += 50;
+            }
+        }
+        std.debug.print("Scroll: {d}\n", .{rl.getMouseWheelMove()});
 
         var position = rl.Vector2.init(xStart, yStart);
         rl.clearBackground(rl.Color.white);
 
         for (wps[0..totalWords]) |wp| {
             position.x = wp.x;
-            position.y = wp.y;
+            position.y = wp.y - scroll;
             drawWord(@ptrCast(wp.word), font, position);
         }
     }

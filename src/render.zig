@@ -150,7 +150,6 @@ pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
                 scroll += 50;
             }
         }
-        std.debug.print("Scroll: {d}\n", .{rl.getMouseWheelMove()});
 
         var position = rl.Vector2.init(xStart, yStart);
         rl.clearBackground(rl.Color.white);

@@ -11,6 +11,7 @@ const screenWidth = 1200;
 const xStart = 10;
 const xMax = screenWidth - 10;
 const yStart = 10;
+const yMax = screenHeight - 10;
 const screenHeight = 800;
 const linespacing = 1;
 const spacing = 1;
@@ -48,7 +49,7 @@ fn populateWordPositions(allocator: mem.Allocator, text: []const u8, font: rl.Fo
 
                 const updatedX = @as(f32, rl.measureTextEx(font, @ptrCast(&buffer[0]), fontsize, spacing).x);
                 if ((updatedX + position.x) > xMax) {
-                    // wrap word
+                    // line wrap
                     position.y += @as(f32, yStart + fontsize + linespacing);
                     position.x = xStart;
                 }
@@ -144,9 +145,11 @@ pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
 
         mouseWheelMove = rl.getMouseWheelMove();
         if (mouseWheelMove != 0) {
-            if (mouseWheelMove > 0) {
+            // + mouse wheel move means mouse whell moved up
+            // i.e. page should scroll bottom to top (up)
+            if (mouseWheelMove > 0 and scroll >= 50) {
                 scroll -= 50;
-            } else {
+            } else if (mouseWheelMove < 0 and wps[totalWords - 1].y - scroll > yMax) {
                 scroll += 50;
             }
         }

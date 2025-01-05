@@ -8,14 +8,17 @@ const mem = std.mem;
 
 const bodyBufferSize: u32 = 10 << 20;
 const screenWidth = 1200;
-const xStart = 10;
-const xMax = screenWidth - 10;
-const yStart = 10;
-const yMax = screenHeight - 10;
 const screenHeight = 800;
 const linespacing = 1;
 const spacing = 1;
 const fontsize = 13;
+const xStart = 10;
+const xOffset = 40;
+const xMax = screenWidth - xOffset;
+const yStart = 10;
+const yOffset = 10;
+const yMax = screenHeight - yOffset;
+const scrollbarWidth = xOffset / 4;
 
 const wordPosition = struct {
     word: []const u8,
@@ -138,19 +141,37 @@ pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
     }
 
     var scroll: f32 = 0;
+    var scrollbarHeight: f32 = 0;
     var mouseWheelMove: f32 = 0;
+    const scrollDistance = 50;
+    const maxPageY = wps[totalWords - 1].y;
+    const viewScrollBar = maxPageY > yMax;
+
+    if (viewScrollBar) {
+        // Todo: fix this
+        scrollbarHeight = yMax - (maxPageY / yMax);
+    }
+
+    const scrollbarScrollDistance: i32 = @intFromFloat((yMax - scrollbarHeight) / (maxPageY / scrollDistance));
+    var scrollbarScroll: i32 = 0;
+
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
         defer rl.endDrawing();
 
-        mouseWheelMove = rl.getMouseWheelMove();
-        if (mouseWheelMove != 0) {
-            // + mouse wheel move means mouse whell moved up
-            // i.e. page should scroll bottom to top (up)
-            if (mouseWheelMove > 0 and scroll >= 50) {
-                scroll -= 50;
-            } else if (mouseWheelMove < 0 and wps[totalWords - 1].y - scroll > yMax) {
-                scroll += 50;
+        if (viewScrollBar) {
+            mouseWheelMove = rl.getMouseWheelMove();
+            if (mouseWheelMove != 0) {
+                // + mouse wheel move means mouse whell moved up
+                // i.e. page should scroll bottom to top (up)
+                if (mouseWheelMove > 0 and scroll >= 50) {
+                    scroll -= scrollDistance;
+                    scrollbarScroll -= scrollbarScrollDistance;
+                } else if (mouseWheelMove < 0 and wps[totalWords - 1].y - scroll > yMax) {
+                    // Todo: when adding the final scroll, don't go beyond the max bottom position
+                    scroll += scrollDistance;
+                    scrollbarScroll += scrollbarScrollDistance;
+                }
             }
         }
 
@@ -162,6 +183,8 @@ pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
             position.y = wp.y - scroll;
             drawWord(@ptrCast(wp.word), font, position);
         }
+
+        rl.drawRectangle(xMax + xOffset / 2, yStart + scrollbarScroll, scrollbarWidth, @intFromFloat(scrollbarHeight), rl.Color.sky_blue);
     }
 }
 

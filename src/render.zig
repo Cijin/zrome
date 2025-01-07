@@ -152,6 +152,7 @@ pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
     }
 
     const scrollbarScrollDistance: i32 = @intFromFloat((yMax - scrollbarHeight) * (pageScrollDistance / (maxPageY - yMax)));
+    const scrollbarHeightInt: i32 = @intFromFloat(scrollbarHeight);
     var scrollbarScroll: i32 = yStart;
 
     while (!rl.windowShouldClose()) {
@@ -166,11 +167,19 @@ pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
                 if (mouseWheelMove > 0 and scroll >= 50) {
                     scroll -= pageScrollDistance;
                     scrollbarScroll -= scrollbarScrollDistance;
+
+                    // bit hacky, if the math is right I shouldn't need this
+                    if (scrollbarScroll < yStart) {
+                        scrollbarScroll = yStart;
+                    }
                 } else if (mouseWheelMove < 0 and (maxPageY - scroll > yMax)) {
-                    // Todo: fix this, currently scrolling beyond maxPageY
                     scroll += pageScrollDistance;
-                    // Todo: or might just be that the scrollbar is scrolling out of position
                     scrollbarScroll += scrollbarScrollDistance;
+
+                    // bit hacky, if the math is right I shouldn't need this
+                    if (scrollbarScroll + scrollbarHeightInt > yMax) {
+                        scrollbarScroll = yMax - scrollbarHeightInt;
+                    }
                 }
             }
         }

@@ -143,17 +143,16 @@ pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
     var scroll: f32 = 0;
     var scrollbarHeight: f32 = 0;
     var mouseWheelMove: f32 = 0;
-    const scrollDistance = 50;
+    const pageScrollDistance = 50;
     const maxPageY = wps[totalWords - 1].y;
     const viewScrollBar = maxPageY > yMax;
 
     if (viewScrollBar) {
-        // Todo: fix this
-        scrollbarHeight = yMax - (maxPageY / yMax);
+        scrollbarHeight = yMax * (yMax / maxPageY);
     }
 
-    const scrollbarScrollDistance: i32 = @intFromFloat((yMax - scrollbarHeight) / (maxPageY / scrollDistance));
-    var scrollbarScroll: i32 = 0;
+    const scrollbarScrollDistance: i32 = @intFromFloat((yMax - scrollbarHeight) * (pageScrollDistance / (maxPageY - yMax)));
+    var scrollbarScroll: i32 = yStart;
 
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
@@ -165,11 +164,12 @@ pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
                 // + mouse wheel move means mouse whell moved up
                 // i.e. page should scroll bottom to top (up)
                 if (mouseWheelMove > 0 and scroll >= 50) {
-                    scroll -= scrollDistance;
+                    scroll -= pageScrollDistance;
                     scrollbarScroll -= scrollbarScrollDistance;
-                } else if (mouseWheelMove < 0 and wps[totalWords - 1].y - scroll > yMax) {
-                    // Todo: when adding the final scroll, don't go beyond the max bottom position
-                    scroll += scrollDistance;
+                } else if (mouseWheelMove < 0 and (maxPageY - scroll > yMax)) {
+                    // Todo: fix this, currently scrolling beyond maxPageY
+                    scroll += pageScrollDistance;
+                    // Todo: or might just be that the scrollbar is scrolling out of position
                     scrollbarScroll += scrollbarScrollDistance;
                 }
             }
@@ -184,7 +184,7 @@ pub fn drawWindow(allocator: mem.Allocator, text: []const u8) !void {
             drawWord(@ptrCast(wp.word), font, position);
         }
 
-        rl.drawRectangle(xMax + xOffset / 2, yStart + scrollbarScroll, scrollbarWidth, @intFromFloat(scrollbarHeight), rl.Color.sky_blue);
+        rl.drawRectangle(xMax + xOffset / 2, scrollbarScroll, scrollbarWidth, @intFromFloat(scrollbarHeight), rl.Color.sky_blue);
     }
 }
 

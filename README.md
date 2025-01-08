@@ -1,3 +1,6 @@
+### 08 Jan 2025: Added scrollbar
+https://github.com/user-attachments/assets/e2581af9-1ae2-47b5-8717-5cf8e92a5fb6
+
 ### 31 Dec 2024: Implemented scroll
 https://github.com/user-attachments/assets/5e0adb0e-ed69-4cbd-8619-f59c8847dd8d
 
